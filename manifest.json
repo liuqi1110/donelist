@@ -1,0 +1,23 @@
+{
+  "name": "Done List",
+  "short_name": "DoneList",
+  "description": "记录每一天的成就感",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2EFEA",
+  "theme_color": "#9EAF88",
+  "icons": [
+    {
+      "src": "static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

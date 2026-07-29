@@ -1,0 +1,545 @@
+/* ==================== 莫兰迪质感设计系统 ==================== */
+:root {
+    --bg:            #F2EFEA;
+    --card:          #FFFFFF;
+    --card-hover:    #FAF9F6;
+    --navbar-bg:     #FFFFFF;
+    --primary:       #9EAF88;
+    --primary-dark:  #8A9B75;
+    --primary-light: #E8EDE2;
+    --danger:        #C4A0A0;
+    --text:          #4A423E;
+    --text-secondary:#7A726A;
+    --text-muted:    #A09890;
+    --border:        #E8E3DA;
+    --border-light:  #F0ECE5;
+    --shadow-sm:     0 1px 4px rgba(74,66,62,0.06);
+    --shadow:        0 2px 14px rgba(74,66,62,0.08);
+    --shadow-lg:     0 8px 30px rgba(74,66,62,0.10);
+    --radius:        16px;
+    --radius-sm:     12px;
+    --font:          -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* ==================== 纹理背景 ==================== */
+body {
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(ellipse at 20% 10%, rgba(158,175,136,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 90%, rgba(176,164,184,0.05) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    font-family: var(--font);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    padding-bottom: 80px;
+    min-height: 100vh;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* ==================== 顶部栏 ==================== */
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(255,255,255,0.82);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-light);
+    padding: 0.6rem 1rem;
+    padding-top: max(0.6rem, env(safe-area-inset-top));
+}
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.header-left {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+.header-center .app-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: 0.06em;
+}
+.header-right .streak-badge {
+    font-size: 0.78rem;
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+/* ==================== 底部导航 ==================== */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    justify-content: space-around;
+    padding: 0.4rem 0;
+    padding-bottom: max(0.4rem, env(safe-area-inset-bottom));
+}
+.nav-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    padding: 0.3rem 1.2rem;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 500;
+    transition: color 0.2s;
+    cursor: pointer;
+}
+.nav-tab i { font-size: 1.3rem; }
+.nav-tab.active { color: var(--primary); }
+.nav-tab.active i { font-weight: 700; }
+
+/* ==================== 标签页 ==================== */
+.tab-page {
+    display: none;
+    padding: 1rem;
+    animation: fadeSlideIn 0.3s ease;
+}
+.tab-page.active { display: block; }
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==================== 今日摘要卡片 ==================== */
+.today-summary { margin-bottom: 1rem; }
+.summary-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.2rem;
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 0.9rem 1.2rem;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border-light);
+}
+.summary-items, .summary-hours {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+}
+.summary-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+}
+
+/* ==================== 记录卡片 ==================== */
+.item-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.item-card {
+    display: flex;
+    background: var(--card);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+    overflow: hidden;
+    animation: cardIn 0.35s ease both;
+    transition: transform 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+}
+.item-card:active { transform: scale(0.985); box-shadow: var(--shadow); }
+@keyframes cardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.item-bar {
+    width: 4px;
+    flex-shrink: 0;
+    border-radius: 4px 0 0 4px;
+}
+.item-body {
+    flex: 1;
+    padding: 0.75rem 0.8rem;
+    min-width: 0;
+}
+.item-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+}
+.item-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.item-duration {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.item-meta {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 0.2rem;
+    flex-wrap: wrap;
+}
+.item-cat { color: var(--text-secondary); }
+.item-delete {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.5rem 0.6rem;
+    font-size: 1.1rem;
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+}
+.item-card:hover .item-delete,
+.item-card:active .item-delete { opacity: 0.6; }
+
+/* ==================== 空状态 ==================== */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+}
+.empty-icon { font-size: 3.5rem; margin-bottom: 0.8rem; }
+.empty-text { font-size: 1.1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem; }
+.empty-hint { font-size: 0.85rem; color: var(--text-muted); }
+
+/* ==================== FAB 按钮 ==================== */
+.fab {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    font-size: 1.6rem;
+    box-shadow: 0 4px 20px rgba(158,175,136,0.4);
+    z-index: 90;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.fab:active { transform: scale(0.92); box-shadow: 0 2px 10px rgba(158,175,136,0.3); }
+
+/* ==================== 底部弹出 Sheet ==================== */
+.sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(74,66,62,0.3);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.sheet-overlay.show { opacity: 1; pointer-events: auto; }
+
+.bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 201;
+    background: var(--card);
+    border-radius: 20px 20px 0 0;
+    padding: 1rem 1.3rem 1.8rem;
+    padding-bottom: max(1.8rem, env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 30px rgba(74,66,62,0.12);
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    max-height: 85vh;
+    overflow-y: auto;
+}
+.bottom-sheet.show { transform: translateY(0); }
+.sheet-handle {
+    width: 36px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 0.8rem;
+}
+.sheet-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+.sheet-field { margin-bottom: 0.9rem; }
+.sheet-field label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
+    display: block;
+}
+.sheet-save-btn {
+    width: 100%;
+    padding: 0.7rem;
+    margin-top: 0.5rem;
+    font-weight: 600;
+    font-size: 1rem;
+    border-radius: var(--radius-sm);
+    background: var(--primary);
+    border-color: var(--primary);
+}
+.sheet-save-btn:hover, .sheet-save-btn:active {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+}
+
+/* 快捷时长 Chips */
+.duration-chips {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.chip {
+    padding: 0.5rem 0.9rem;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.chip.active {
+    background: var(--primary-light);
+    border-color: var(--primary);
+    color: var(--primary-dark);
+    font-weight: 600;
+}
+.chip-custom { color: var(--text-muted); }
+
+/* 分类 Chips */
+.category-chips {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.cat-chip {
+    padding: 0.4rem 0.75rem;
+    border-radius: 20px;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-secondary);
+}
+.cat-chip.active {
+    background: color-mix(in srgb, var(--cat-color) 15%, #fff);
+    border-color: var(--cat-color);
+    font-weight: 600;
+    color: var(--text);
+}
+
+/* ==================== 统计页 ==================== */
+.stats-segment {
+    display: flex;
+    background: var(--border-light);
+    border-radius: 10px;
+    padding: 3px;
+    margin-bottom: 1rem;
+    gap: 2px;
+}
+.segment-btn {
+    flex: 1;
+    padding: 0.45rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.segment-btn.active {
+    background: #fff;
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+}
+.stats-overview {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+}
+.stat-mini-card {
+    background: var(--card);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border-light);
+}
+.stat-mini-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+.stat-mini-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+}
+.stat-chart-card, .stat-heatmap-card {
+    margin-bottom: 1rem;
+}
+
+/* ==================== 热力图 ==================== */
+.heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+}
+.heatmap-header {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    padding-bottom: 2px;
+    font-weight: 500;
+}
+.heatmap-cell {
+    aspect-ratio: 1;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.heatmap-cell.empty { background: transparent; }
+.heatmap-legend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+.legend-bar {
+    width: 60px;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(to right, rgba(0,0,0,0.03), rgba(158,175,136,1));
+}
+
+/* ==================== 设置页 ==================== */
+.settings-card {
+    margin-bottom: 0.8rem;
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+}
+.about-text {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 1.5rem 0;
+}
+
+/* 开关颜色 */
+.form-check-input:checked {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* ==================== 通用覆盖 Bootstrap ==================== */
+.card {
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    background: var(--card);
+}
+.card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text);
+    padding: 0.75rem 1rem;
+}
+.card-header:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+.btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+}
+.btn-primary:hover, .btn-primary:active {
+    background: var(--primary-dark) !important;
+    border-color: var(--primary-dark) !important;
+}
+.btn-outline-primary {
+    color: var(--primary);
+    border-color: var(--primary);
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+}
+.btn-outline-primary:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+.btn-outline-secondary {
+    color: var(--text-secondary);
+    border-color: var(--border);
+    border-radius: var(--radius-sm);
+}
+.form-control, .form-select {
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: #FAF9F7;
+    font-size: 0.9rem;
+    padding: 0.5rem 0.7rem;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.2rem rgba(158,175,136,0.15);
+    background: #fff;
+}
+.modal-content { border-radius: 18px; border: none; box-shadow: var(--shadow-lg); }
+.modal-header { border-bottom: 1px solid var(--border); }
+.list-group-item { border-color: var(--border-light); padding: 0.75rem 1rem; }
+
+.text-success { color: var(--primary) !important; }
+
+/* ==================== 响应式 ==================== */
+@media (min-width: 768px) {
+    .app-main { max-width: 500px; margin: 0 auto; }
+    .bottom-nav { max-width: 500px; left: 50%; transform: translateX(-50%); border-radius: 16px 16px 0 0; }
+    .bottom-sheet { max-width: 500px; left: 50%; transform: translate(-50%, 100%); }
+    .bottom-sheet.show { transform: translate(-50%, 0); }
+}

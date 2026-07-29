@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Done List">
+    <meta name="theme-color" content="#9EAF88">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="static/icon-192.png">
+    <title>Done List</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <!-- ==================== 顶部状态栏 ==================== -->
+    <header class="app-header" id="appHeader">
+        <div class="header-content">
+            <div class="header-left">
+                <span class="header-date" id="headerDate"></span>
+            </div>
+            <div class="header-center">
+                <span class="app-title">Done List</span>
+            </div>
+            <div class="header-right">
+                <span class="streak-badge" id="streakBadge">🔥 1天</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== 主内容区（三个标签页） ==================== -->
+    <main class="app-main" id="appMain">
+
+        <!-- ===== 今天页 ===== -->
+        <section class="tab-page active" id="tabToday">
+            <!-- 今日摘要 -->
+            <div class="today-summary" id="todaySummary">
+                <div class="summary-card">
+                    <div class="summary-items" id="summaryItems">0 件事</div>
+                    <div class="summary-divider"></div>
+                    <div class="summary-hours" id="summaryHours">0 小时</div>
+                </div>
+            </div>
+
+            <!-- 记录列表 -->
+            <div class="item-list" id="itemList">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📝</div>
+                    <div class="empty-text">今天还没记录</div>
+                    <div class="empty-hint">点击下方按钮，记下你的成就</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 统计页 ===== -->
+        <section class="tab-page" id="tabStats">
+            <div class="stats-segment">
+                <button class="segment-btn active" data-period="week">周</button>
+                <button class="segment-btn" data-period="month">月</button>
+                <button class="segment-btn" data-period="year">年</button>
+            </div>
+
+            <!-- 统计概览卡片 -->
+            <div class="stats-overview" id="statsOverview">
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label">记录天数</div>
+                    <div class="stat-mini-value" id="statDays">0</div>
+                </div>
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label">总时长</div>
+                    <div class="stat-mini-value" id="statTotal">0h</div>
+                </div>
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label">日均</div>
+                    <div class="stat-mini-value" id="statAvg">0h</div>
+                </div>
+            </div>
+
+            <!-- 分类时长图表 -->
+            <div class="card stat-chart-card">
+                <div class="card-header">分类时长分布</div>
+                <div class="card-body">
+                    <canvas id="statBarChart" height="240"></canvas>
+                </div>
+            </div>
+
+            <!-- 日历热力图 -->
+            <div class="card stat-heatmap-card">
+                <div class="card-header">记录热力</div>
+                <div class="card-body" id="heatmapContainer">
+                    <div class="heatmap-loading">加载中...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 设置页 ===== -->
+        <section class="tab-page" id="tabSettings">
+            <!-- 分类管理 -->
+            <div class="card settings-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>分类管理</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showAddCategory()">+ 添加</button>
+                </div>
+                <div class="card-body p-0" id="categoryList"></div>
+            </div>
+
+            <!-- 每日提醒 -->
+            <div class="card settings-card">
+                <div class="card-header">每日提醒</div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>开启提醒</span>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="reminderToggle" onchange="toggleReminder()">
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center" id="reminderTimeRow" style="display:none">
+                        <span>提醒时间</span>
+                        <input type="time" class="form-control" id="reminderTime" value="21:00" style="width:120px" onchange="saveReminderTime()">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据管理 -->
+            <div class="card settings-card">
+                <div class="card-header">数据管理</div>
+                <div class="card-body">
+                    <button class="btn btn-outline-primary w-100 mb-2" onclick="exportData()">
+                        <i class="bi bi-download"></i> 导出数据 (JSON)
+                    </button>
+                    <button class="btn btn-outline-secondary w-100" onclick="importData()">
+                        <i class="bi bi-upload"></i> 导入数据
+                    </button>
+                    <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+                </div>
+            </div>
+
+            <div class="about-text">
+                Done List · 记录每一天的成就感 ✨
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== FAB 添加按钮 ==================== -->
+    <button class="fab" id="fabBtn" onclick="showAddSheet()">
+        <i class="bi bi-plus-lg"></i>
+    </button>
+
+    <!-- ==================== 底部导航 ==================== -->
+    <nav class="bottom-nav">
+        <button class="nav-tab active" data-tab="tabToday">
+            <i class="bi bi-check2-square"></i>
+            <span>今天</span>
+        </button>
+        <button class="nav-tab" data-tab="tabStats">
+            <i class="bi bi-graph-up"></i>
+            <span>统计</span>
+        </button>
+        <button class="nav-tab" data-tab="tabSettings">
+            <i class="bi bi-gear"></i>
+            <span>设置</span>
+        </button>
+    </nav>
+
+    <!-- ==================== 添加/编辑底部弹出 Sheet ==================== -->
+    <div class="sheet-overlay" id="sheetOverlay" onclick="hideAddSheet()"></div>
+    <div class="bottom-sheet" id="bottomSheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title" id="sheetTitle">添加记录</div>
+        <input type="hidden" id="editId">
+
+        <!-- 标题 -->
+        <div class="sheet-field">
+            <label>标题</label>
+            <input type="text" class="form-control" id="itemTitle" placeholder="做了什么？" maxlength="50">
+        </div>
+
+        <!-- 快捷时长 -->
+        <div class="sheet-field">
+            <label>时长</label>
+            <div class="duration-chips" id="durationChips">
+                <button class="chip" data-min="15">15分钟</button>
+                <button class="chip" data-min="30">30分钟</button>
+                <button class="chip active" data-min="60">1小时</button>
+                <button class="chip" data-min="120">2小时</button>
+                <button class="chip chip-custom" data-min="0">自定义</button>
+            </div>
+            <input type="number" class="form-control mt-2" id="customDuration" placeholder="输入分钟数" style="display:none" min="1">
+        </div>
+
+        <!-- 分类 -->
+        <div class="sheet-field">
+            <label>分类</label>
+            <div class="category-chips" id="categoryChips"></div>
+        </div>
+
+        <!-- 日期 + 备注 -->
+        <div class="sheet-field row g-2">
+            <div class="col-6">
+                <label>日期</label>
+                <input type="date" class="form-control" id="itemDate">
+            </div>
+            <div class="col-6">
+                <label>备注</label>
+                <input type="text" class="form-control" id="itemNote" placeholder="可选" maxlength="100">
+            </div>
+        </div>
+
+        <button class="btn btn-primary sheet-save-btn" id="sheetSaveBtn" onclick="saveItem()">保存</button>
+    </div>
+
+    <!-- ==================== 分类编辑模态框 ==================== -->
+    <div class="modal fade" id="catModal" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="catModalTitle">添加分类</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="catEditId">
+                    <div class="mb-3">
+                        <label class="form-label">名称</label>
+                        <input type="text" class="form-control" id="catName" placeholder="分类名称" maxlength="10">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">图标 (emoji)</label>
+                        <input type="text" class="form-control" id="catIcon" placeholder="📌" maxlength="4">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">颜色</label>
+                        <input type="color" class="form-control form-control-color" id="catColor" value="#9DABBA">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCategory()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== JS ==================== -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="static/app.js"></script>
+
+    <!-- 注册 Service Worker -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+    </script>
+</body>
+</html>
