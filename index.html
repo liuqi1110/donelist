@@ -18,15 +18,21 @@
     <!-- ==================== 顶部状态栏 ==================== -->
     <header class="app-header" id="appHeader">
         <div class="header-content">
-            <div class="header-left">
+            <button class="nav-arrow" id="navLeft" onclick="changeDate(-1)" title="前一天">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <div class="header-center" onclick="jumpToDate()">
                 <span class="header-date" id="headerDate"></span>
+                <i class="bi bi-caret-down-fill date-drop-icon"></i>
             </div>
-            <div class="header-center">
-                <span class="app-title">Done List</span>
-            </div>
-            <div class="header-right">
-                <span class="streak-badge" id="streakBadge">🔥 1天</span>
-            </div>
+            <input type="date" id="datePickerInput" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;" max="">
+            <button class="nav-arrow" id="navRight" onclick="changeDate(1)" title="后一天">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+        <div class="header-sub">
+            <span class="app-title">Done List</span>
+            <span class="streak-badge" id="streakBadge">🔥 1天</span>
         </div>
     </header>
 
@@ -183,7 +189,9 @@
             <div class="duration-chips" id="durationChips">
                 <button class="chip" data-min="15">15分钟</button>
                 <button class="chip" data-min="30">30分钟</button>
+                <button class="chip" data-min="45">45分钟</button>
                 <button class="chip active" data-min="60">1小时</button>
+                <button class="chip" data-min="90">1.5小时</button>
                 <button class="chip" data-min="120">2小时</button>
                 <button class="chip chip-custom" data-min="0">自定义</button>
             </div>
@@ -194,6 +202,16 @@
         <div class="sheet-field">
             <label>分类</label>
             <div class="category-chips" id="categoryChips"></div>
+        </div>
+
+        <!-- 时段 -->
+        <div class="sheet-field">
+            <label>时段</label>
+            <div class="period-chips" id="periodChips">
+                <button class="period-chip" data-period="morning">☀️ 上午</button>
+                <button class="period-chip" data-period="afternoon">🌤 下午</button>
+                <button class="period-chip" data-period="evening">🌙 晚上</button>
+            </div>
         </div>
 
         <!-- 日期 + 备注 -->
@@ -245,6 +263,7 @@
     <!-- ==================== JS ==================== -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script src="static/app.js"></script>
 
     <!-- 注册 Service Worker -->

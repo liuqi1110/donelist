@@ -1,6 +1,6 @@
 // ==================== IndexedDB 数据层 ====================
 const DB_NAME = 'DoneListDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let db = null;
 
 const DEFAULT_CATEGORIES = [
@@ -12,24 +12,47 @@ const DEFAULT_CATEGORIES = [
     { name: '运动', icon: '🏃', color: '#9CAF88' },
 ];
 
+const PERIODS = [
+    { value: 'morning', label: '上午', icon: '☀️' },
+    { value: 'afternoon', label: '下午', icon: '🌤' },
+    { value: 'evening', label: '晚上', icon: '🌙' },
+];
+
 function openDB() {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = (e) => {
             const db = e.target.result;
-            if (!db.objectStoreNames.contains('categories')) {
-                const catStore = db.createObjectStore('categories', { keyPath: 'id', autoIncrement: true });
-                catStore.createIndex('name', 'name', { unique: false });
+            const oldVersion = e.oldVersion;
+
+            if (oldVersion < 1) {
+                if (!db.objectStoreNames.contains('categories')) {
+                    const catStore = db.createObjectStore('categories', { keyPath: 'id', autoIncrement: true });
+                    catStore.createIndex('name', 'name', { unique: false });
+                }
+                if (!db.objectStoreNames.contains('items')) {
+                    const itemStore = db.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
+                    itemStore.createIndex('date', 'date', { unique: false });
+                    itemStore.createIndex('category_id', 'category_id', { unique: false });
+                }
             }
-            if (!db.objectStoreNames.contains('items')) {
-                const itemStore = db.createObjectStore('items', { keyPath: 'id', autoIncrement: true });
-                itemStore.createIndex('date', 'date', { unique: false });
-                itemStore.createIndex('category_id', 'category_id', { unique: false });
+
+            if (oldVersion < 2) {
+                // V1 → V2: 新增 time_period 和 sort_order
+                const tx = e.target.transaction;
+                const itemStore = tx.objectStore('items');
+                if (!itemStore.indexNames.contains('time_period')) {
+                    itemStore.createIndex('time_period', 'time_period', { unique: false });
+                }
+                if (!itemStore.indexNames.contains('sort_order')) {
+                    itemStore.createIndex('sort_order', 'sort_order', { unique: false });
+                }
             }
         };
         req.onsuccess = async (e) => {
             db = e.target.result;
             await initCategories();
+            await migrateV2SortOrder();
             resolve(db);
         };
         req.onerror = () => reject(req.error);
@@ -45,6 +68,28 @@ async function initCategories() {
             store.add(cat);
         }
         await new Promise(r => { tx.oncomplete = r; });
+    }
+}
+
+async function migrateV2SortOrder() {
+    // 给已有但缺少 sort_order 的记录按 created_at 升序赋默认值
+    const allItems = await getAll('items');
+    const needFix = allItems.filter(i => i.sort_order === undefined || i.sort_order === null);
+    if (needFix.length === 0) return;
+
+    // 按日期分组，每组内按创建时间升序
+    const groups = {};
+    needFix.forEach(i => {
+        if (!groups[i.date]) groups[i.date] = [];
+        groups[i.date].push(i);
+    });
+
+    for (const [date, items] of Object.entries(groups)) {
+        items.sort((a, b) => a.created_at.localeCompare(b.created_at));
+        for (let idx = 0; idx < items.length; idx++) {
+            items[idx].sort_order = idx;
+            await updateRecord('items', items[idx].id, items[idx]);
+        }
     }
 }
 
@@ -101,6 +146,12 @@ function deleteRecord(storeName, id) {
 // ==================== 工具函数 ====================
 
 function todayStr() { return new Date().toISOString().slice(0, 10); }
+function fmtDate(d) {
+    const parts = d.split('-');
+    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+    const wd = new Date(d).getDay();
+    return `${parseInt(parts[0])}年${parseInt(parts[1])}月${parseInt(parts[2])}日 周${weekdays[wd]}`;
+}
 function fmtTime(min) {
     if (min < 60) return `${min}分钟`;
     const h = Math.floor(min / 60);
@@ -109,10 +160,10 @@ function fmtTime(min) {
 }
 function fmtShort(min) {
     if (min < 60) return `${min}min`;
-    return `${(min / 60).toFixed(1)}h`;
+    const h = min / 60;
+    return h === Math.floor(h) ? `${h}h` : `${h.toFixed(1)}h`;
 }
 
-// Toast
 function toast(msg) {
     const div = document.createElement('div');
     div.textContent = msg;
@@ -122,8 +173,10 @@ function toast(msg) {
 }
 
 // ==================== 全局状态 ====================
-let selectedDuration = 60; // 当前选中的快捷时长（分钟）
+let selectedDate = todayStr();
+let selectedDuration = 60;
 let selectedCategoryId = null;
+let selectedPeriod = '';
 let currentTab = 'tabToday';
 let statChartInstance = null;
 
@@ -134,17 +187,47 @@ let statChartInstance = null;
     await renderToday();
     setupNav();
     setupSheet();
+    setupPeriodChips();
     loadSettings();
 })();
 
-// ==================== 顶部栏 ====================
+// ==================== 顶部栏 + 日期导航 ====================
 function updateHeader() {
-    const now = new Date();
-    const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
-    document.getElementById('headerDate').textContent =
-        `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 周${weekdays[now.getDay()]}`;
+    document.getElementById('headerDate').textContent = fmtDate(selectedDate);
     updateStreak();
+    updateNavArrows();
 }
+
+function updateNavArrows() {
+    const today = todayStr();
+    document.getElementById('navRight').style.visibility = selectedDate >= today ? 'hidden' : '';
+}
+
+function changeDate(offset) {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + offset);
+    const newDate = d.toISOString().slice(0, 10);
+    if (newDate > todayStr()) return;
+    selectedDate = newDate;
+    updateHeader();
+    renderToday();
+}
+
+function jumpToDate() {
+    document.getElementById('datePickerInput').value = selectedDate;
+    document.getElementById('datePickerInput').showPicker();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const picker = document.getElementById('datePickerInput');
+    if (picker) {
+        picker.addEventListener('change', function () {
+            selectedDate = this.value;
+            updateHeader();
+            renderToday();
+        });
+    }
+});
 
 async function updateStreak() {
     let streak = 0;
@@ -156,7 +239,6 @@ async function updateStreak() {
             streak++;
             d.setDate(d.getDate() - 1);
         } else if (i === 0) {
-            // 今天还没记录，继续往前查
             d.setDate(d.getDate() - 1);
         } else {
             break;
@@ -184,11 +266,17 @@ function switchTab(tabId) {
 
 // ==================== 今天页 ====================
 async function renderToday() {
-    const items = await getByIndex('items', 'date', todayStr());
+    const items = await getByIndex('items', 'date', selectedDate);
     const listEl = document.getElementById('itemList');
     const emptyEl = document.getElementById('emptyState');
     const summaryEl = document.getElementById('summaryItems');
     const hoursEl = document.getElementById('summaryHours');
+
+    // 清除之前的 Sortable 实例
+    if (listEl._sortable) {
+        listEl._sortable.destroy();
+        listEl._sortable = null;
+    }
 
     if (items.length === 0) {
         emptyEl.style.display = '';
@@ -203,17 +291,24 @@ async function renderToday() {
     summaryEl.textContent = `${items.length} 件事`;
     hoursEl.textContent = fmtTime(totalMin);
 
-    // 按创建时间倒序
-    items.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    // 按 sort_order 升序
+    items.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     const cats = await getAll('categories');
     const catMap = {};
     cats.forEach(c => { catMap[c.id] = c; });
 
+    const periodMap = {};
+    PERIODS.forEach(p => { periodMap[p.value] = p; });
+
     let html = '';
     items.forEach((item, idx) => {
         const cat = catMap[item.category_id] || {};
+        const period = periodMap[item.time_period] || null;
         html += `
-        <div class="item-card" style="animation-delay:${idx * 0.05}s" onclick="editItem(${item.id})">
+        <div class="item-card" data-id="${item.id}" style="animation-delay:${idx * 0.04}s" onclick="editItem(${item.id})">
+            <div class="drag-handle" onclick="event.stopPropagation()" title="拖动排序">
+                <i class="bi bi-grip-vertical"></i>
+            </div>
             <div class="item-bar" style="background:${cat.color || '#9DABBA'}"></div>
             <div class="item-body">
                 <div class="item-top">
@@ -222,8 +317,8 @@ async function renderToday() {
                 </div>
                 <div class="item-meta">
                     <span class="item-cat">${cat.icon || '📌'} ${cat.name || ''}</span>
+                    ${period ? `<span class="item-period">· ${period.icon} ${period.label}</span>` : ''}
                     ${item.note ? `<span class="item-note">· ${escHtml(item.note)}</span>` : ''}
-                    <span class="item-time">· ${item.date}</span>
                 </div>
             </div>
             <button class="item-delete" onclick="event.stopPropagation();deleteItem(${item.id})" title="删除">
@@ -232,10 +327,30 @@ async function renderToday() {
         </div>`;
     });
 
-    // 保留 emptyState 外的卡片
     listEl.querySelectorAll('.item-card').forEach(c => c.remove());
     emptyEl.insertAdjacentHTML('afterend', html);
-    updateHeader();
+
+    // 初始化 SortableJS 拖拽
+    if (typeof Sortable !== 'undefined') {
+        listEl._sortable = new Sortable(listEl, {
+            handle: '.drag-handle',
+            animation: 150,
+            touchStartThreshold: 5,
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            onEnd: async function () {
+                const cards = listEl.querySelectorAll('.item-card');
+                for (let i = 0; i < cards.length; i++) {
+                    const id = parseInt(cards[i].dataset.id);
+                    const item = items.find(it => it.id === id);
+                    if (item && item.sort_order !== i) {
+                        item.sort_order = i;
+                        await updateRecord('items', id, item);
+                    }
+                }
+            }
+        });
+    }
 }
 
 function escHtml(s) {
@@ -246,12 +361,11 @@ function escHtml(s) {
 
 // ==================== 添加/编辑 Sheet ====================
 function setupSheet() {
-    // 快捷时长按钮
     document.querySelectorAll('#durationChips .chip').forEach(chip => {
         chip.addEventListener('click', () => {
             document.querySelectorAll('#durationChips .chip').forEach(c => c.classList.remove('active'));
             chip.classList.add('active');
-            const min = parseInt(chip.dataset.min);
+            const min = parseFloat(chip.dataset.min);
             if (min === 0) {
                 document.getElementById('customDuration').style.display = '';
                 document.getElementById('customDuration').focus();
@@ -262,9 +376,18 @@ function setupSheet() {
             }
         });
     });
-
     document.getElementById('customDuration').addEventListener('input', function () {
         selectedDuration = parseInt(this.value) || 0;
+    });
+}
+
+function setupPeriodChips() {
+    document.querySelectorAll('#periodChips .period-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            document.querySelectorAll('#periodChips .period-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            selectedPeriod = chip.dataset.period;
+        });
     });
 }
 
@@ -274,15 +397,16 @@ async function showAddSheet() {
     document.getElementById('sheetSaveBtn').textContent = '保存';
     document.getElementById('itemTitle').value = '';
     document.getElementById('itemNote').value = '';
-    document.getElementById('itemDate').value = todayStr();
+    document.getElementById('itemDate').value = selectedDate;
     document.getElementById('customDuration').style.display = 'none';
 
-    // 重置快捷时长为1小时
     document.querySelectorAll('#durationChips .chip').forEach(c => c.classList.remove('active'));
     document.querySelector('#durationChips .chip[data-min="60"]').classList.add('active');
     selectedDuration = 60;
 
-    // 加载分类
+    document.querySelectorAll('#periodChips .period-chip').forEach(c => c.classList.remove('active'));
+    selectedPeriod = '';
+
     await renderCategoryChips();
     if (!selectedCategoryId) {
         const cats = await getAll('categories');
@@ -300,8 +424,6 @@ function hideAddSheet() {
 }
 
 async function editItem(id) {
-    const items = await getByIndex('items', 'date', todayStr());
-    // 可能不在今天，需要全量搜索
     const allItems = await getAll('items');
     const item = allItems.find(i => i.id === id);
     if (!item) return;
@@ -316,8 +438,8 @@ async function editItem(id) {
 
     selectedDuration = item.duration;
     selectedCategoryId = item.category_id;
+    selectedPeriod = item.time_period || '';
 
-    // 匹配快捷时长按钮
     document.querySelectorAll('#durationChips .chip').forEach(c => c.classList.remove('active'));
     const matchChip = document.querySelector(`#durationChips .chip[data-min="${item.duration}"]`);
     if (matchChip) {
@@ -326,6 +448,12 @@ async function editItem(id) {
         document.querySelector('#durationChips .chip-custom').classList.add('active');
         document.getElementById('customDuration').style.display = '';
         document.getElementById('customDuration').value = item.duration;
+    }
+
+    document.querySelectorAll('#periodChips .period-chip').forEach(c => c.classList.remove('active'));
+    if (selectedPeriod) {
+        const periodChip = document.querySelector(`#periodChips .period-chip[data-period="${selectedPeriod}"]`);
+        if (periodChip) periodChip.classList.add('active');
     }
 
     await renderCategoryChips();
@@ -343,20 +471,33 @@ async function saveItem() {
     if (!selectedDuration || selectedDuration <= 0) { toast('请选择时长'); return; }
     if (!selectedCategoryId) { toast('请选择分类'); return; }
 
-    const data = {
-        title, duration: selectedDuration, category_id: selectedCategoryId,
-        date, note, created_at: new Date().toISOString()
-    };
-
     if (editId) {
+        const allItems = await getAll('items');
+        const existing = allItems.find(i => i.id === parseInt(editId));
+        const data = {
+            ...existing,
+            title, duration: selectedDuration, category_id: selectedCategoryId,
+            date, note, time_period: selectedPeriod
+        };
         await updateRecord('items', parseInt(editId), data);
         toast('已更新');
     } else {
+        // 新记录：sort_order = 当天最大 + 1
+        const todayItems = await getByIndex('items', 'date', date);
+        const maxOrder = todayItems.reduce((max, i) => Math.max(max, i.sort_order || 0), -1);
+        const data = {
+            title, duration: selectedDuration, category_id: selectedCategoryId,
+            date, note, time_period: selectedPeriod,
+            sort_order: maxOrder + 1,
+            created_at: new Date().toISOString()
+        };
         await addRecord('items', data);
         toast('已记录 ✨');
     }
 
     hideAddSheet();
+    selectedDate = date;
+    updateHeader();
     await renderToday();
 }
 
@@ -378,7 +519,6 @@ async function renderCategoryChips() {
             ${c.icon} ${c.name}</button>`;
     });
     container.innerHTML = html;
-
     container.querySelectorAll('.cat-chip').forEach(chip => {
         chip.addEventListener('click', () => {
             container.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
@@ -418,94 +558,54 @@ async function renderStats() {
     const allItems = await getAll('items');
     const cats = await getAll('categories');
 
-    // 筛选时间范围
     const filtered = allItems.filter(i => {
         const d = new Date(i.date);
         return d >= startDate && d <= endDate;
     });
 
-    // 各分类时长
     const catMinutes = {};
     cats.forEach(c => { catMinutes[c.id] = 0; });
     filtered.forEach(i => { catMinutes[i.category_id] = (catMinutes[i.category_id] || 0) + i.duration; });
 
-    // 更新概览
     const totalMin = filtered.reduce((s, i) => s + i.duration, 0);
     const uniqueDays = new Set(filtered.map(i => i.date)).size;
     document.getElementById('statDays').textContent = uniqueDays;
     document.getElementById('statTotal').textContent = fmtTime(totalMin);
     document.getElementById('statAvg').textContent = uniqueDays > 0 ? fmtShort(Math.round(totalMin / uniqueDays)) : '0min';
 
-    // 柱状图
     const labels = cats.map(c => c.icon + ' ' + c.name);
     const data = cats.map(c => catMinutes[c.id] || 0);
     const colors = cats.map(c => c.color);
-    const dataPresent = data.some(v => v > 0);
 
     if (statChartInstance) statChartInstance.destroy();
     const ctx = document.getElementById('statBarChart').getContext('2d');
-
     statChartInstance = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels,
-            datasets: [{
-                data,
-                backgroundColor: colors,
-                borderRadius: 6,
-                borderWidth: 0,
-            }]
-        },
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 6, borderWidth: 0 }] },
         options: {
-            responsive: true,
-            indexAxis: 'y',
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: ctx => fmtTime(ctx.raw)
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    ticks: { callback: v => fmtShort(v) }
-                }
-            }
+            responsive: true, indexAxis: 'y',
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtTime(ctx.raw) } } },
+            scales: { x: { beginAtZero: true, ticks: { callback: v => fmtShort(v) } } }
         }
     });
 
-    // 热力图
     renderHeatmap(filtered, startDate);
 }
 
 function renderHeatmap(items, startDate) {
     const container = document.getElementById('heatmapContainer');
-    // 按日期聚合
     const dateMap = {};
-    items.forEach(i => {
-        dateMap[i.date] = (dateMap[i.date] || 0) + i.duration;
-    });
-
+    items.forEach(i => { dateMap[i.date] = (dateMap[i.date] || 0) + i.duration; });
     const maxMin = Math.max(...Object.values(dateMap), 1);
 
-    // 生成当月日历网格
     const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const year = now.getFullYear(), month = now.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const firstDay = new Date(year, month, 0).getDay(); // 上月最后一天是周几
+    const firstDay = new Date(year, month, 0).getDay();
 
     let html = '<div class="heatmap-grid">';
-    const dayHeaders = ['一', '二', '三', '四', '五', '六', '日'];
-    dayHeaders.forEach(d => { html += `<div class="heatmap-header">${d}</div>`; });
-
-    // 填充月初空白
-    for (let i = 0; i < firstDay; i++) {
-        html += '<div class="heatmap-cell empty"></div>';
-    }
-
+    ['一', '二', '三', '四', '五', '六', '日'].forEach(d => { html += `<div class="heatmap-header">${d}</div>`; });
+    for (let i = 0; i < firstDay; i++) html += '<div class="heatmap-cell empty"></div>';
     for (let d = 1; d <= daysInMonth; d++) {
         const ds = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         const mins = dateMap[ds] || 0;
@@ -513,9 +613,7 @@ function renderHeatmap(items, startDate) {
         const bg = mins > 0 ? `rgba(158,175,136,${intensity.toFixed(2)})` : 'rgba(0,0,0,0.03)';
         html += `<div class="heatmap-cell" style="background:${bg}" title="${ds}: ${fmtTime(mins)}">${d}</div>`;
     }
-
-    html += '</div>';
-    html += '<div class="heatmap-legend"><span>少</span><span class="legend-bar"></span><span>多</span></div>';
+    html += '</div><div class="heatmap-legend"><span>少</span><span class="legend-bar"></span><span>多</span></div>';
     container.innerHTML = html;
 }
 
@@ -527,15 +625,10 @@ async function renderSettings() {
     cats.forEach(c => {
         html += `
         <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div><span style="font-size:1.2em">${c.icon}</span><span class="ms-2">${escHtml(c.name)}</span></div>
             <div>
-                <span style="font-size:1.2em">${c.icon}</span>
-                <span class="ms-2">${escHtml(c.name)}</span>
-            </div>
-            <div>
-                <button class="btn btn-sm btn-outline-secondary me-1" onclick="editCategory(${c.id},'${escHtml(c.name)}','${c.icon}','${c.color}')">
-                    <i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${c.id})">
-                    <i class="bi bi-trash"></i></button>
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick="editCategory(${c.id},'${escHtml(c.name)}','${c.icon}','${c.color}')"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${c.id})"><i class="bi bi-trash"></i></button>
             </div>
         </div>`;
     });
@@ -566,9 +659,7 @@ async function saveCategory() {
     const name = document.getElementById('catName').value.trim();
     const icon = document.getElementById('catIcon').value.trim() || '📌';
     const color = document.getElementById('catColor').value;
-
     if (!name) { toast('请输入分类名称'); return; }
-
     if (editId) {
         await updateRecord('categories', parseInt(editId), { name, icon, color });
     } else {
@@ -600,17 +691,12 @@ function toggleReminder() {
     const on = document.getElementById('reminderToggle').checked;
     localStorage.setItem('donelist_reminder', on);
     document.getElementById('reminderTimeRow').style.display = on ? '' : 'none';
-    if (on) {
-        scheduleReminder(document.getElementById('reminderTime').value);
-    } else {
-        cancelReminder();
-    }
+    if (on) scheduleReminder(document.getElementById('reminderTime').value); else cancelReminder();
 }
 
 function saveReminderTime() {
-    const time = document.getElementById('reminderTime').value;
-    localStorage.setItem('donelist_reminder_time', time);
-    scheduleReminder(time);
+    localStorage.setItem('donelist_reminder_time', document.getElementById('reminderTime').value);
+    scheduleReminder(document.getElementById('reminderTime').value);
 }
 
 let reminderTimer = null;
@@ -621,20 +707,14 @@ function scheduleReminder(time) {
     const target = new Date(now);
     target.setHours(h, m, 0, 0);
     if (target <= now) target.setDate(target.getDate() + 1);
-
     const delay = target - now;
     reminderTimer = setTimeout(() => {
-        // 用 Notification API
         if ('Notification' in window && Notification.permission === 'granted') {
             new Notification('Done List', { body: '今天做了什么？花1分钟记录一下吧 ✨', icon: 'static/icon-192.png' });
         }
-        scheduleReminder(time); // 明天继续
-    }, Math.min(delay, 2147483647)); // setTimeout 最大延迟
-
-    // 请求通知权限
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
+        scheduleReminder(time);
+    }, Math.min(delay, 2147483647));
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
 }
 
 function cancelReminder() {
@@ -645,13 +725,11 @@ function cancelReminder() {
 async function exportData() {
     const items = await getAll('items');
     const categories = await getAll('categories');
-    const data = { version: 1, exported_at: new Date().toISOString(), categories, items };
+    const data = { version: 2, exported_at: new Date().toISOString(), categories, items };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `DoneList_备份_${todayStr()}.json`;
-    a.click();
+    a.href = url; a.download = `DoneList_备份_${todayStr()}.json`; a.click();
     URL.revokeObjectURL(url);
     toast('导出成功');
 }
@@ -667,20 +745,14 @@ async function handleImport(event) {
         const text = await file.text();
         const data = JSON.parse(text);
         if (!data.categories || !data.items) throw new Error('Invalid format');
-
-        // 清空现有数据
         const tx1 = db.transaction('categories', 'readwrite');
         tx1.objectStore('categories').clear();
         await new Promise(r => { tx1.oncomplete = r; });
-
         const tx2 = db.transaction('items', 'readwrite');
         tx2.objectStore('items').clear();
         await new Promise(r => { tx2.oncomplete = r; });
-
-        // 导入
         for (const c of data.categories) await addRecord('categories', c);
         for (const i of data.items) await addRecord('items', i);
-
         toast(`导入成功：${data.categories.length}个分类，${data.items.length}条记录`);
         if (currentTab === 'tabToday') renderToday();
         if (currentTab === 'tabSettings') renderSettings();
@@ -690,10 +762,8 @@ async function handleImport(event) {
     event.target.value = '';
 }
 
-// ==================== 快捷键：回车保存 ====================
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && document.getElementById('sheetOverlay').classList.contains('show')) {
-        e.preventDefault();
-        saveItem();
+        e.preventDefault(); saveItem();
     }
 });

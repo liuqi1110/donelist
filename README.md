@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/30499751/README.md)
 # Done List 📋
 
 记录每一天的成就感。一个轻量、私密、可装到手机桌面的每日记录 PWA。

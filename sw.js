@@ -11,6 +11,7 @@ const ASSETS = [
     'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css',
     'https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js',
     'https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js',
+    'https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js',
 ];
 
 // 安装：预缓存静态资源
