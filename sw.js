@@ -1,5 +1,5 @@
 // Done List — Service Worker
-const CACHE_NAME = 'donelist-v1';
+const CACHE_NAME = 'donelist-v2';
 const ASSETS = [
     './',
     'manifest.json',
